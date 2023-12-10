@@ -1,0 +1,7 @@
+setup.py
+JiraDashboardsRest.egg-info/PKG-INFO
+JiraDashboardsRest.egg-info/SOURCES.txt
+JiraDashboardsRest.egg-info/dependency_links.txt
+JiraDashboardsRest.egg-info/entry_points.txt
+JiraDashboardsRest.egg-info/requires.txt
+JiraDashboardsRest.egg-info/top_level.txt
