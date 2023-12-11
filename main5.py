@@ -3,11 +3,12 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 
 def func5():
+
     # Jira API URL for searching issues
     jira_url = "https://issues.apache.org/jira/rest/api/2/search"
 
-    # JQL query to find closed issues in the project
-    jql_query = 'project = "KAFKA" AND status = Closed'
+    # JQL query to find all issues in the project
+    jql_query = 'project = "KAFKA"'
 
     # Set up the Jira API request headers and parameters
     headers = {
@@ -16,63 +17,81 @@ def func5():
 
     params = {
         "jql": jql_query,
-        "maxResults": 1000,  # Adjust maxResults based on the number of closed issues in your project
+        "maxResults": 1000,  # Adjust maxResults based on the number of issues in your project
     }
 
-    # Make the Jira API request to search for closed issues with anonymous authentication
+    # Make the Jira API request to search for issues
     response = requests.get(
         jira_url,
         headers=headers,
         params=params,
     )
 
-    # Check if the request was successful (status code 200)
-    if response.status_code == 200:
-        # Parse the response JSON to get the closed issues
-        closed_issues = response.json()["issues"]
+    selectedIssues = response.json()["issues"]
 
-        # Initialize a dictionary to store the count for each time interval
-        time_counts = {}
+    inp = "Philip Nee"
 
-        # Iterate through each closed issue
-        for issue in closed_issues:
-            issue_key = issue["key"]
-            worklog_url = f"https://issues.apache.org/jira/rest/api/2/issue/{issue_key}/worklog"
+    data_user = {
+        "project-ID":[],
+        "created":[],
+        "resolution":[],
+        "estimated":[]
+    }
 
-            # Make the Jira API request to get worklog entries for the issue
-            worklog_response = requests.get(worklog_url, headers=headers)
+    time_format = "%Y-%m-%d %H:%M:%S"
 
-            # Check if the request for worklog was successful (status code 200)
-            if worklog_response.status_code == 200:
-                # Parse the worklog entries JSON
-                worklogs = worklog_response.json()["worklogs"]
+    for issue in selectedIssues:
+        try:
+            if (issue["fields"]["assignee"]["displayName"] is not None) and \
+                (issue["fields"]["status"]["name"] == "Resolved") and \
+                (issue["fields"]["assignee"]["displayName"] == inp):
 
-                # Iterate through each worklog entry and calculate the logged time
-                for worklog in worklogs:
-                    author = worklog["author"]["displayName"]
-                    time_spent_seconds = worklog["timeSpentSeconds"]
-                    logged_time_interval = timedelta(seconds=time_spent_seconds)
+                data_user["project-ID"].append(issue["key"])
+                data_user["created"].append((issue["fields"]["created"])[0:10]+" "+(issue["fields"]["resolutiondate"])[11:19])
+                data_user["resolution"].append((issue["fields"]["resolutiondate"])[0:10]+" "+(issue["fields"]["resolutiondate"])[11:19])
+        except TypeError:
+            continue
 
-                    # Increment the histogram bins based on the logged time interval
-                    time_interval_str = str(logged_time_interval)
-                    time_counts[(author, time_interval_str)] = time_counts.get((author, time_interval_str), 0) + 1
-            else:
-                print(f"Error fetching worklog for issue {issue_key}: {worklog_response.status_code}, {worklog_response.text}")
+    for i in range(len(data_user["project-ID"])):
+        start_datetime = datetime.strptime(data_user["created"][i], time_format)
+        end_datetime = datetime.strptime(data_user["resolution"][i], time_format)
 
-        # Extract data for plotting
-        unique_time_intervals = set(interval for (author, interval) in time_counts.keys())
-        unique_authors = set(author for (author, interval) in time_counts.keys())
-        data = {author: [time_counts.get((author, interval), 0) for interval in unique_time_intervals] for author in unique_authors}
+        difference = round(((end_datetime - start_datetime).total_seconds() / 3600) / 24)
+        data_user["estimated"].append(difference)
+    print(data_user)
 
-        # Plot the histogram
-        for author, counts in data.items():
-            plt.bar(range(len(unique_time_intervals)), counts, label=author)
+    y = {
+       "10":0,
+        "50": 0,
+        "100": 0,
+        "250": 0,
+        "500": 0,
+        "1000":0
+    }
 
-        plt.xlabel("Time Intervals")
-        plt.ylabel("Number of Closed Tasks")
-        plt.title("Histogram of Logged Time for Closed Issues")
-        plt.xticks(range(len(unique_time_intervals)), unique_time_intervals, rotation=45)
-        plt.legend()
-        plt.show()
-    else:
-        print(f"Error: {response.status_code}, {response.text}")
+    for i in range(len(data_user["estimated"])):
+        if (int(data_user["estimated"][i]) >= 0) and (int(data_user["estimated"][i]) <= 10):
+            y["10"] +=1
+        if (int(data_user["estimated"][i]) > 10) and (int(data_user["estimated"][i]) <= 50):
+            y["50"] +=1
+        if (int(data_user["estimated"][i]) > 50) and (int(data_user["estimated"][i]) <= 100):
+            y["100"] +=1
+        if (int(data_user["estimated"][i]) > 100) and (int(data_user["estimated"][i]) <= 250):
+            y["250"] +=1
+        if (int(data_user["estimated"][i]) > 250) and (int(data_user["estimated"][i]) <= 500):
+            y["500"] +=1
+        if (int(data_user["estimated"][i]) > 500) and (int(data_user["estimated"][i]) <= 1000):
+            y["1000"] +=1
+
+    print(y.keys())
+    print(y.values())
+    print(len(data_user["project-ID"]))
+
+    plt.bar(y.keys(),y.values())
+    plt.xlabel('Затраченных дней')
+    plt.ylabel('Количество задач')
+    plt.title('Диаграмма кол-ва задач по затраченному времени')
+    plt.show()
+
+    val=list(y.values())
+    return val

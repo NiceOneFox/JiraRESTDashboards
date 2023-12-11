@@ -1,100 +1,204 @@
 import requests
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-
+import json
 
 def func2():
-    # Jira API URL for searching issues
-    jira_url = "https://issues.apache.org/jira/rest/api/2/search"
+    list_open = []
+    list_in_progress = []
+    list_resolved = []
+    list_resolved_day = []
+    list_reopened = []
+    list_patch_available = []
+    list_patch_available_day = []
 
-    # JQL query to find closed issues in the project
-    jql_query = 'project = "KAFKA" AND status = Closed'
+    payload = {'jql': 'project=KAFKA AND status=Closed ORDER BY createdDate', 'maxResults': '1000',
+               'expand': 'changelog',
+               'fields': 'created'}
 
-    # Set up the Jira API request headers and parameters
-    headers = {
-        "Content-Type": "application/json",
-    }
+    response = requests.get('https://issues.apache.org/jira/rest/api/2/search', params=payload)
+    graph2_data = json.loads(response.text)
 
-    params = {
-        "jql": jql_query,
-        "maxResults": 1000,  # Adjust maxResults based on the number of closed issues in your project
-    }
+    for elem in graph2_data["issues"]:
+        t_open, t_in_prog, t_res, t_reo, t_patch = status_statistic(elem)
 
-    # Make the Jira API request to search for closed issues with anonymous authentication
-    response = requests.get(
-        jira_url,
-        headers=headers,
-        params=params,
-    )
+        if t_open != timedelta(0):
+            list_open.append(timedelta_to_days(t_open))
+        if t_in_prog != timedelta(0):
+            list_in_progress.append(timedelta_to_days(t_in_prog))
+        if t_res != timedelta(0):
+            list_resolved.append(timedelta_to_sec(t_res))
+            list_resolved_day.append(timedelta_to_days(t_res))
+        if t_reo != timedelta(0):
+            list_reopened.append(timedelta_to_days(t_reo))
+        if t_patch != timedelta(0):
+            list_patch_available_day.append(timedelta_to_days(t_patch))
+            list_patch_available.append(timedelta_to_hours(t_patch))
 
-    # Check if the request was successful (status code 200)
-    if response.status_code == 200:
-        # Parse the response JSON to get the closed issues
-        closed_issues = response.json()["issues"]
+    plt.hist(list_open, color='blue', edgecolor='black', bins=30)
+    plt.title('Диаграмма Open')
+    plt.xlabel('Время решения (дни)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()
 
-        # Initialize dictionaries to store time distribution for each state
-        state_time_distribution = {}
+    '''list_open.sort()
+    middle_index = int(len(list_open) / 1.2)
+    first_patr = list_open[:middle_index]
+    plt.hist(first_patr, color='blue', edgecolor='black', bins=80)
+    plt.title('2. Диаграмма Open 2')
+    plt.xlabel('Время решения (дни)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()'''
 
-        # Iterate through each closed issue
-        for issue in closed_issues:
-            issue_key = issue["key"]
-            worklog_url = f"https://issues.apache.org/jira/rest/api/2/issue/{issue_key}/worklog"
+    ###### Resolved
+    plt.hist(list_resolved_day, color='green', edgecolor='black', bins=30)
+    plt.title('Диаграмма Resolved')
+    plt.xlabel('Время решения (дни)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()
 
-            # Make the Jira API request to get worklog entries for the issue
-            worklog_response = requests.get(worklog_url, headers=headers)
+    '''list_resolved.sort()
+    middle_index = int(len(list_resolved) / 1.6)
+    first_patr = list_resolved[:middle_index]
+    plt.hist(first_patr, color='green', edgecolor='black', bins=80)
+    plt.title('2. Диаграмма Resolved 2')
+    plt.xlabel('Время решения (секунды)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()
 
-            # Check if the request for worklog was successful (status code 200)
-            if worklog_response.status_code == 200:
-                # Parse the worklog entries JSON
-                worklogs = worklog_response.json()["worklogs"]
+    middle_index = int(len(list_resolved) / 1.8)
+    second_patr = list_resolved[:middle_index]
+    plt.hist(second_patr, color='green', edgecolor='black', bins=80)
+    plt.title('2. Диаграмма Resolved 3')
+    plt.xlabel('Время решения (секунды)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()'''
 
-                # Iterate through each worklog entry and calculate the logged time for each state
-                for worklog in worklogs:
-                    created_date = datetime.strptime(worklog["created"], "%Y-%m-%dT%H:%M:%S.%f%z")
-                    time_spent_seconds = worklog["timeSpentSeconds"]
+    ###### Reopened
+    plt.hist(list_reopened, color='yellow', edgecolor='black', bins=175)
+    plt.title('Диаграмма Reopened')
+    plt.xlabel('Время решения (дни)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()
 
-                    # Assume the state transitions are tracked in the history (modify this part based on your Jira configuration)
-                    state_transitions = [
-                        {"from": "Open", "to": "In Progress", "transition_date": "2023-01-01T12:00:00.000+0000"},
-                        {"from": "In Progress", "to": "Resolved", "transition_date": "2023-01-02T12:00:00.000+0000"},
-                        {"from": "Resolved", "to": "Closed", "transition_date": "2023-01-03T12:00:00.000+0000"},
-                    ]
+    #### In Progress
+    plt.hist(list_in_progress, color='purple', edgecolor='black', bins=50)
+    plt.title('Диаграмма In Progress')
+    plt.xlabel('Время решения (дни)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()
 
-                    # Iterate through state transitions and calculate the time spent in each state
-                    for transition in state_transitions:
-                        from_state = transition["from"]
-                        to_state = transition["to"]
-                        transition_date = datetime.strptime(transition["transition_date"], "%Y-%m-%dT%H:%M:%S.%f%z")
+    '''list_in_progress.sort()
+    second_patr = list_in_progress[:len(list_in_progress) - 4]
+    plt.hist(second_patr, color='purple', edgecolor='black', bins=80)
+    plt.title('2. Диаграмма In Progress 2')
+    plt.xlabel('Время решения (дни)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()'''
 
-                        if created_date <= transition_date:
-                            state_time_distribution.setdefault(from_state, []).append(time_spent_seconds)
-                            state_time_distribution.setdefault(to_state, []).append(-time_spent_seconds)
-                            break
+    ###### Patch Available
+    plt.hist(list_patch_available_day, color='orange', edgecolor='black', bins=30)
+    plt.title('Диаграмма Patch Available')
+    plt.xlabel('Время решения (дни)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()
 
-            else:
-                print(f"Error fetching worklog for issue {issue_key}: {worklog_response.status_code}, {worklog_response.text}")
+    '''list_patch_available.sort()
+    middle_index = int(len(list_patch_available) / 1.3)
+    second_patr = list_patch_available[:middle_index]
+    plt.hist(second_patr, color='orange', edgecolor='black', bins=40)
+    plt.title('2. Диаграмма Patch Available 2')
+    plt.xlabel('Время решения (часы)')
+    plt.ylabel('Количество задач')
+    plt.tight_layout()
+    plt.show()'''
 
-        # Plot diagrams for each state
-        for state, time_list in state_time_distribution.items():
-            cumulative_time = 0
-            cumulative_times = []
 
-            # Sort the time entries by date
-            sorted_time_entries = sorted(time_list, key=lambda x: x["date"])
+def status_statistic(issue):
+    sum_time_open = timedelta(0)
+    sum_time_in_progress = timedelta(0)
+    sum_time_resolved = timedelta(0)
+    sum_time_reopened = timedelta(0)
+    sum_time_patch_available = timedelta(0)
 
-            # Calculate cumulative time for each time entry
-            for time_entry in sorted_time_entries:
-                cumulative_time += time_entry["time"]
-                cumulative_times.append(cumulative_time)
+    time_start = get_issue_created_time(issue)
+    for history in issue['changelog']['histories']:
+        for item in history['items']:
+            if item['field'] == 'status':
+                time_stop = convert_time(history['created'])
+                time = time_stop - time_start
+                status = item['fromString']
+                if status == 'Open':
+                    sum_time_open = sum_time_open + time
+                elif status == 'In Progress':
+                    sum_time_in_progress = sum_time_in_progress + time
+                elif status == 'Resolved':
+                    sum_time_resolved = sum_time_resolved + time
+                elif status == 'Reopened':
+                    sum_time_reopened = sum_time_reopened + time
+                elif status == 'Patch Available':
+                    sum_time_patch_available = sum_time_patch_available + time
+                time_start = time_stop
 
-            # Plot the diagram
-            plt.plot(sorted_time_entries, cumulative_times, label=state)
+    return sum_time_open, sum_time_in_progress, sum_time_resolved, sum_time_reopened, sum_time_patch_available
 
-        plt.xlabel("Time")
-        plt.ylabel("Cumulative Time in State")
-        plt.title("Distribution of Time by Task States")
-        plt.legend()
-        plt.show()
 
-    else:
-        print(f"Error: {response.status_code}, {response.text}")
+def status_statistic(issue):
+        sum_time_open = timedelta(0)
+        sum_time_in_progress = timedelta(0)
+        sum_time_resolved = timedelta(0)
+        sum_time_reopened = timedelta(0)
+        sum_time_patch_available = timedelta(0)
+
+        time_start = get_issue_created_time(issue)
+        for history in issue['changelog']['histories']:
+            for item in history['items']:
+                if item['field'] == 'status':
+                    time_stop = convert_time(history['created'])
+                    time = time_stop - time_start
+                    status = item['fromString']
+                    if status == 'Open':
+                        sum_time_open = sum_time_open + time
+                    elif status == 'In Progress':
+                        sum_time_in_progress = sum_time_in_progress + time
+                    elif status == 'Resolved':
+                        sum_time_resolved = sum_time_resolved + time
+                    elif status == 'Reopened':
+                        sum_time_reopened = sum_time_reopened + time
+                    elif status == 'Patch Available':
+                        sum_time_patch_available = sum_time_patch_available + time
+                    time_start = time_stop
+
+        return sum_time_open, sum_time_in_progress, sum_time_resolved, sum_time_reopened, sum_time_patch_available
+
+
+def get_issue_created_time(issue):
+    time_str = issue['fields']['created']
+    time = convert_time(time_str)
+    return time
+
+
+def convert_time(time_str):
+    time = datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S.%f%z')
+    return time
+
+
+def timedelta_to_sec(time):
+    return time.total_seconds()
+
+
+def timedelta_to_days(time):
+    return time.total_seconds() / (3600 * 24)
+
+
+def timedelta_to_hours(time):
+    return time.total_seconds() / 3600
